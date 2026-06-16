@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Smart University Timetable System</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Poppins',sans-serif;
+}
+
+body{
+    background:#f4f7fc;
+}
+
+header{
+    background:linear-gradient(135deg,#2563eb,#7c3aed);
+    padding:25px;
+    color:white;
+    text-align:center;
+    box-shadow:0 3px 10px rgba(0,0,0,.15);
+}
+
+.container{
+    width:95%;
+    margin:auto;
+    padding:20px;
+}
+
+.controls{
+    display:flex;
+    gap:15px;
+    flex-wrap:wrap;
+    margin-bottom:20px;
+}
+
+button{
+    background:#2563eb;
+    color:white;
+    border:none;
+    padding:12px 18px;
+    border-radius:10px;
+    cursor:pointer;
+    font-size:15px;
+}
+
+button:hover{
+    opacity:.9;
+}
+
+select,input{
+    padding:12px;
+    border-radius:10px;
+    border:1px solid #ccc;
+}
+
+.cards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:20px;
+    margin-bottom:25px;
+}
+
+.card{
+    background:white;
+    padding:25px;
+    border-radius:15px;
+    box-shadow:0 4px 12px rgba(0,0,0,.08);
+    text-align:center;
+}
+
+.card h2{
+    color:#2563eb;
+    margin-bottom:10px;
+}
+
+.section{
+    background:white;
+    padding:20px;
+    margin-bottom:25px;
+    border-radius:15px;
+    box-shadow:0 4px 12px rgba(0,0,0,.08);
+}
+
+.section h2{
+    margin-bottom:15px;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+th{
+    background:#2563eb;
+    color:white;
+    padding:12px;
+}
+
+td{
+    padding:10px;
+    border:1px solid #ddd;
+    text-align:center;
+}
+
+.chart-container{
+    height:350px;
+}
+
+.conflict{
+    padding:10px;
+    margin:10px 0;
+    background:#fee2e2;
+    border-left:5px solid red;
+    border-radius:6px;
+}
+
+.success{
+    padding:10px;
+    background:#dcfce7;
+    border-left:5px solid green;
+    border-radius:6px;
+}
+
+@media(max-width:768px){
+    .controls{
+        flex-direction:column;
+    }
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>🎓 Smart University Timetable Generator</h1>
+    <p>Professional Scheduling Dashboard</p>
+</header>
+
+<div class="container">
+
+    <div class="controls">
+
+        <button onclick="generateTimetable()">
+            Generate Timetable
+        </button>
+
+        <select id="departmentFilter">
+            <option value="">All Departments</option>
+            <option value="CS">CS</option>
+            <option value="MATH">MATH</option>
+            <option value="PHY">PHY</option>
+            <option value="EE">EE</option>
+            <option value="ME">ME</option>
+            <option value="BIO">BIO</option>
+        </select>
+
+        <input
+            type="text"
+            id="searchBox"
+            placeholder="Search Course"
+        />
+
+        <button onclick="searchCourse()">
+            Search
+        </button>
+
+    </div>
+
+    <div class="cards">
+
+        <div class="card">
+            <h2 id="courses">0</h2>
+            <p>Total Courses</p>
+        </div>
+
+        <div class="card">
+            <h2 id="faculty">0</h2>
+            <p>Total Faculty</p>
+        </div>
+
+        <div class="card">
+            <h2 id="rooms">0</h2>
+            <p>Total Rooms</p>
+        </div>
+
+        <div class="card">
+            <h2 id="conflicts">0</h2>
+            <p>Conflicts</p>
+        </div>
+
+    </div>
+
+    <div class="section">
+
+        <h2>Generated Timetable</h2>
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Department</th>
+                    <th>Course</th>
+                    <th>Faculty</th>
+                    <th>Room</th>
+                    <th>Day</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+
+            <tbody id="tableBody"></tbody>
+
+        </table>
+
+    </div>
+
+    <div class="section">
+
+        <h2>Faculty Workload</h2>
+
+        <div class="chart-container">
+            <canvas id="facultyChart"></canvas>
+        </div>
+
+    </div>
+
+    <div class="section">
+
+        <h2>Room Utilization</h2>
+
+        <div class="chart-container">
+            <canvas id="roomChart"></canvas>
+        </div>
+
+    </div>
+
+    <div class="section">
+
+        <h2>Department Statistics</h2>
+
+        <div class="chart-container">
+            <canvas id="departmentChart"></canvas>
+        </div>
+
+    </div>
+
+    <div class="section">
+
+        <h2>Conflict Analysis</h2>
+
+        <div id="conflictPanel"></div>
+
+    </div>
+
+</div>
+
+<script>
+
+let facultyChart;
+let roomChart;
+let departmentChart;
+
+async function generateTimetable(){
+
+    try {
+
+        const response = await fetch('/generate');
+        const data = await response.json();
+
+        updateCards(data.statistics);
+        populateTable(data.timetable);
+        showConflicts(data.conflicts);
+        drawFacultyChart(data.faculty_workload);
+        drawRoomChart(data.room_utilization);
+        drawDepartmentChart(data.department_statistics);
+
+    } catch(error) {
+        console.error("Error generating timetable:", error);
+    }
+
+}
+
+function updateCards(stats){
+
+    document.getElementById('courses').innerText =
+        stats.total_courses || 0;
+
+    document.getElementById('faculty').innerText =
+        stats.total_faculty || 0;
+
+    document.getElementById('rooms').innerText =
+        stats.total_rooms || 0;
+
+    document.getElementById('conflicts').innerText =
+        stats.conflicts || 0;
+
+}
+
+function populateTable(data){
+
+    const body = document.getElementById("tableBody");
+
+    body.innerHTML = "";
+
+    data.forEach(row => {
+
+        body.innerHTML += `
+        <tr>
+            <td>${row.department}</td>
+            <td>${row.course}</td>
+            <td>${row.faculty}</td>
+            <td>${row.room}</td>
+            <td>${row.day}</td>
+            <td>${row.time}</td>
+        </tr>
+        `;
+
+    });
+
+}
+
+function showConflicts(conflicts){
+
+    const panel = document.getElementById("conflictPanel");
+
+    panel.innerHTML = "";
+
+    if(!conflicts || conflicts.length === 0){
+
+        panel.innerHTML =
+        '<div class="success">No conflicts detected.</div>';
+
+        return;
+    }
+
+    conflicts.forEach(c => {
+
+        panel.innerHTML += `
+        <div class="conflict">
+            ${c.type}
+        </div>
+        `;
+
+    });
+
+}
+
+function drawFacultyChart(data){
+
+    if(facultyChart){
+        facultyChart.destroy();
+    }
+
+    facultyChart = new Chart(
+        document.getElementById("facultyChart"),
+        {
+            type:'bar',
+            data:{
+                labels:Object.keys(data),
+                datasets:[{
+                    label:'Workload',
+                    data:Object.values(data)
+                }]
+            },
+            options:{
+                responsive:true,
+                maintainAspectRatio:false
+            }
+        }
+    );
+
+}
+
+function drawRoomChart(data){
+
+    if(roomChart){
+        roomChart.destroy();
+    }
+
+    roomChart = new Chart(
+        document.getElementById("roomChart"),
+        {
+            type:'bar',
+            data:{
+                labels:Object.keys(data),
+                datasets:[{
+                    label:'Utilization %',
+                    data:Object.values(data)
+                }]
+            },
+            options:{
+                responsive:true,
+                maintainAspectRatio:false
+            }
+        }
+    );
+
+}
+
+function drawDepartmentChart(data){
+
+    if(departmentChart){
+        departmentChart.destroy();
+    }
+
+    departmentChart = new Chart(
+        document.getElementById("departmentChart"),
+        {
+            type:'pie',
+            data:{
+                labels:Object.keys(data),
+                datasets:[{
+                    data:Object.values(data)
+                }]
+            },
+            options:{
+                responsive:true,
+                maintainAspectRatio:false
+            }
+        }
+    );
+
+}
+
+async function searchCourse(){
+
+    try {
+
+        const value =
+        document.getElementById("searchBox").value.trim();
+
+        const response =
+        await fetch(`/search?course=${encodeURIComponent(value)}`);
+
+        const data =
+        await response.json();
+
+        populateTable(data);
+
+    } catch(error) {
+        console.error("Search error:", error);
+    }
+
+}
+
+document
+.getElementById("departmentFilter")
+.addEventListener("change", async function(){
+
+    try {
+
+        if(this.value === ""){
+            generateTimetable();
+            return;
+        }
+
+        const response =
+        await fetch(`/department/${this.value}`);
+
+        const data =
+        await response.json();
+
+        populateTable(data);
+
+    } catch(error) {
+        console.error("Department filter error:", error);
+    }
+
+});
+
+generateTimetable();
+
+</script>
+
+</body>
+</html>
